@@ -1,0 +1,84 @@
+//codigo cliente
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define SERVER_IP "127.0.0.1" // IP do servidor (localhost)
+#define SERVER_PORT 8080
+
+typedef struct {
+    unsigned short int type;
+    unsigned short int orig_uid;
+    unsigned short int dest_uid;
+    unsigned short int text_len;
+    unsigned char text[141];
+} msg_t;
+
+int main() {
+    int client_socket;
+    struct sockaddr_in server_addr;
+    msg_t msg;
+
+    // Cria o socket do cliente
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket < 0) {
+        perror("Erro ao criar socket");
+        exit(EXIT_FAILURE);
+    }
+
+    // Configura o endereço do servidor
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(SERVER_PORT);
+    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0) {
+        perror("Endereço inválido");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Conecta ao servidor
+    if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Erro ao conectar");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Conectado ao servidor.\n");
+
+    while (1) {
+        // Preenche os campos da mensagem
+        msg.type = 1;
+        msg.orig_uid = 123;
+        msg.dest_uid = 456;
+
+        // Lê a mensagem do usuário
+        printf("Digite uma mensagem (ou 'TCHAU' para sair): ");
+        fgets((char *)msg.text, sizeof(msg.text), stdin);
+
+        // Remove o caractere de nova linha, se presente
+        msg.text[strcspn((char *)msg.text, "\n")] = 0;
+
+        // Define o comprimento do texto
+        msg.text_len = strlen((char *)msg.text);
+
+        // Verifica se a mensagem é "TCHAU"
+        if (strcmp((char *)msg.text, "TCHAU") == 0) {
+            printf("Encerrando a conexão...\n");
+            break;
+        }
+
+        // Envia a mensagem para o servidor
+        if (send(client_socket, &msg, sizeof(msg), 0) < 0) {
+            perror("Erro ao enviar mensagem");
+            close(client_socket);
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Mensagem enviada ao servidor.\n");
+    }
+
+    // Fecha o socket do cliente
+    close(client_socket);
+    return 0;
+}
