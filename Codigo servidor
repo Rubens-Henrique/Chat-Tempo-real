@@ -1,0 +1,101 @@
+//codigo servidor 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
+#define PORT 8080
+#define MAX_CLIENTS 10
+#define BUFFER_SIZE sizeof(msg_t)
+
+typedef struct {
+    unsigned short int type;
+    unsigned short int orig_uid;
+    unsigned short int dest_uid;
+    unsigned short int text_len;
+    unsigned char text[141];
+} msg_t;
+
+void handle_client(int client_socket) {
+    msg_t msg;
+    ssize_t received;
+
+    while ((received = recv(client_socket, &msg, sizeof(msg), 0)) > 0) {
+        // Verifica se a mensagem é "TCHAU"
+        if (strncmp((char *)msg.text, "TCHAU", msg.text_len) == 0) {
+            printf("Cliente enviou 'TCHAU'. Encerrando conexão.\n");
+            break;
+        }
+
+        printf("Mensagem recebida:\n");
+        printf("Tipo: %hu\n", msg.type);
+        printf("UID de origem: %hu\n", msg.orig_uid);
+        printf("UID de destino: %hu\n", msg.dest_uid);
+        printf("Comprimento do texto: %hu\n", msg.text_len);
+        printf("Texto: %.*s\n", msg.text_len, msg.text);
+
+        // Aqui você pode adicionar lógica para tratar a mensagem, se necessário
+    }
+
+    if (received == 0) {
+        printf("Cliente desconectado.\n");
+    } else if (received < 0) {
+        perror("Erro ao receber mensagem");
+    }
+
+    close(client_socket);
+}
+
+int main() {
+    int server_socket, client_socket;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_len = sizeof(client_addr);
+
+    // Cria o socket do servidor
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket < 0) {
+        perror("Falha ao criar socket");
+        exit(EXIT_FAILURE);
+    }
+
+    // Configura o endereço do servidor
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
+
+    // Associa o socket ao endereço e porta
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Falha ao associar socket");
+        close(server_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Escuta conexões de clientes
+    if (listen(server_socket, MAX_CLIENTS) < 0) {
+        perror("Falha ao escutar");
+        close(server_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Servidor TCP em execução na porta %d...\n", PORT);
+
+    while (1) {
+        // Aceita uma nova conexão de cliente
+        client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &addr_len);
+        if (client_socket < 0) {
+            perror("Falha ao aceitar conexão");
+            continue;
+        }
+
+        printf("Cliente conectado!\n");
+
+        // Trata o cliente diretamente (ou crie uma thread para cada cliente, se necessário)
+        handle_client(client_socket);
+    }
+
+    close(server_socket);
+    return 0;
+}
